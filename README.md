@@ -1,4 +1,4 @@
-# Porject 05 Auctions
+# Project 05 Auctions
 
 Inside your project you should have the following structure:
 ## At the top level:
