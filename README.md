@@ -41,4 +41,4 @@ You should not change anything here, but you may need to pull the changes from t
 ## Project Plan
 Alexander
 Enrique
-Ricardo
+Ricardo-Rangel-Valencia
