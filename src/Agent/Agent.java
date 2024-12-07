@@ -10,7 +10,7 @@ public class Agent {
     private BankConnection bankConnection;
     private AuctionManager auctionManager;
     private int accountNum;
-    private Scanner scanner;
+    private UserInterface userInterface;
     private boolean isAuto;
     private boolean running;
 
@@ -26,7 +26,8 @@ public class Agent {
             Agent agent = new Agent(isAuto);
             System.out.println("Connecting to bank on port " + args[0]);
             agent.start(Integer.parseInt(args[0]), args[1], Integer.parseInt(args[2]));
-        } catch (Exception e) {
+            agent.showMenu(); // Call the showMenu() method after the agent has started
+        } catch (IOException | ClassNotFoundException e) {
             System.out.println("Error starting Agent:");
             e.printStackTrace();
         }
@@ -35,7 +36,7 @@ public class Agent {
     public Agent(boolean isAuto) {
         System.out.println("Initializing Agent...");
         this.isAuto = isAuto;
-        this.scanner = new Scanner(System.in);
+        this.userInterface = new UserInterface(this);
         this.running = true;
         this.auctionManager = new AuctionManager();
     }
@@ -67,55 +68,17 @@ public class Agent {
     }
 
     private void showMenu() {
-        while (running) {
-            try {
-                System.out.println("\n=== Agent Menu ===");
-                System.out.println("1. View Balance");
-                System.out.println("2. View Auction Houses");
-                System.out.println("3. View Items");
-                System.out.println("4. Place Bid");
-                System.out.println("5. Exit");
-                System.out.print("\nEnter choice (1-5): ");
-
-                int choice = scanner.nextInt();
-                scanner.nextLine(); // consume newline
-                handleMenuChoice(choice);
-            } catch (Exception e) {
-                System.out.println("Error in menu: " + e.getMessage());
-            }
-        }
+        this.userInterface.showMenu();
     }
 
-    private void handleMenuChoice(int choice) throws IOException, ClassNotFoundException {
-        switch (choice) {
-            case 1:
-                checkBalance();
-                break;
-            case 2:
-                viewAuctionHouses();
-                break;
-            case 3:
-                auctionManager.viewItems();
-                break;
-            case 4:
-                placeBid();
-                break;
-            case 5:
-                exit();
-                break;
-            default:
-                System.out.println("Invalid choice. Please try again.");
-        }
-    }
-
-    private void checkBalance() throws IOException, ClassNotFoundException {
+    public void checkBalance() throws IOException, ClassNotFoundException {
         System.out.println("Checking balance...");
         bankConnection.sendMessage(new Message("availableBalance"));
         Message response = bankConnection.receiveMessage();
         System.out.println("Available Balance: $" + response.splitCommand(1));
     }
 
-    private void viewAuctionHouses() throws IOException, ClassNotFoundException {
+    public void viewAuctionHouses() throws IOException, ClassNotFoundException {
         System.out.println("Requesting auction house list...");
         bankConnection.sendMessage(new Message("ViewCurrentAuctions"));
         Message response = bankConnection.receiveMessage();
@@ -136,28 +99,11 @@ public class Agent {
         }
     }
 
-    private void placeBid() throws IOException {
-        if (auctionManager.getAuctionAddresses().isEmpty()) {
-            System.out.println("No auction houses connected. View auction houses first.");
-            return;
-        }
-
-        System.out.println("\nAvailable auction houses:");
-        for (String address : auctionManager.getAuctionAddresses()) {
-            System.out.println(address);
-        }
-
-        System.out.print("Enter auction house address (IP:PORT): ");
-        String auctionAddress = scanner.nextLine();
-        System.out.print("Enter item ID: ");
-        String itemId = scanner.nextLine();
-        System.out.print("Enter bid amount: $");
-        int bidAmount = scanner.nextInt();
-
-        auctionManager.placeBid(auctionAddress, itemId, accountNum, bidAmount);
+    public void placeBid() throws IOException {
+        this.userInterface.placeBid();
     }
 
-    private void exit() throws IOException {
+    public void exit() throws IOException {
         System.out.println("Exiting...");
         running = false;
 

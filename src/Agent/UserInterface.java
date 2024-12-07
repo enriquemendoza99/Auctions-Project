@@ -16,19 +16,20 @@ public class UserInterface {
 
     public void showMenu() {
         while (agent.isRunning()) {
-            System.out.println("\n1. View Balance");
+            System.out.println("\n=== Agent Menu ===");
+            System.out.println("1. View Balance");
             System.out.println("2. View Auction Houses");
             System.out.println("3. View Items");
             System.out.println("4. Place Bid");
             System.out.println("5. Exit");
+            System.out.print("\nEnter choice (1-5): ");
 
             int choice = scanner.nextInt();
             scanner.nextLine(); // consume newline
-
             try {
                 handleMenuChoice(choice);
             } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
+                System.out.println("Error in menu: " + e.getMessage());
             }
         }
     }
@@ -36,56 +37,43 @@ public class UserInterface {
     private void handleMenuChoice(int choice) throws IOException, ClassNotFoundException {
         switch (choice) {
             case 1:
-                checkBalance();
+                agent.checkBalance();
                 break;
             case 2:
-                viewAuctionHouses();
+                agent.viewAuctionHouses();
                 break;
             case 3:
                 agent.getAuctionManager().viewItems();
                 break;
             case 4:
-                placeBid();
+                agent.placeBid();
                 break;
             case 5:
-                exit();
+                agent.exit();
                 break;
+            default:
+                System.out.println("Invalid choice. Please try again.");
         }
     }
 
-    private void checkBalance() throws IOException, ClassNotFoundException {
-        agent.getBankConnection().sendMessage(new Message("availableBalance"));
-        Message response = agent.getBankConnection().receiveMessage();
-        System.out.println("Available Balance: $" + response.splitCommand(1));
-    }
-
-    private void viewAuctionHouses() throws IOException, ClassNotFoundException {
-        agent.getBankConnection().sendMessage(new Message("ViewCurrentAuctions"));
-        Message response = agent.getBankConnection().receiveMessage();
-        HashMap<?, AuctionHouseAddress> auctions =
-                (HashMap<?, AuctionHouseAddress>) response.splitCommand(1);
-
-        for (Map.Entry<?, AuctionHouseAddress> entry : auctions.entrySet()) {
-            agent.getAuctionManager().connectToAuctionHouse(entry.getValue());
+    public void placeBid() throws IOException {
+        if (agent.getAuctionManager().getAuctionAddresses().isEmpty()) {
+            System.out.println("No auction houses connected. View auction houses first.");
+            return;
         }
-    }
 
-    private void placeBid() throws IOException {
-        System.out.println("Enter auction house address:");
+        System.out.println("\nAvailable auction houses:");
+        for (String address : agent.getAuctionManager().getAuctionAddresses()) {
+            System.out.println(address);
+        }
+
+        System.out.print("Enter auction house address (IP:PORT): ");
         String auctionAddress = scanner.nextLine();
-        System.out.println("Enter item ID:");
+        System.out.print("Enter item ID: ");
         String itemId = scanner.nextLine();
-        System.out.println("Enter bid amount:");
+        System.out.print("Enter bid amount: $");
         int bidAmount = scanner.nextInt();
 
-        agent.getAuctionManager().placeBid(auctionAddress, itemId,
-                agent.getAccountNum(), bidAmount);
-    }
-
-    private void exit() throws IOException {
-        agent.setRunning(false);
-        agent.getBankConnection().close();
-        agent.getAuctionManager().closeAll();
-        System.exit(0);
+        agent.getAuctionManager().placeBid(auctionAddress, itemId, agent.getAccountNum(), bidAmount);
     }
 }
