@@ -1,10 +1,7 @@
 package Bank;
 
 import constants.Message;
-
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 
 public class AgentHandler extends Thread {
@@ -16,64 +13,47 @@ public class AgentHandler extends Thread {
     }
 
     private void processMessage(Message message) throws IOException, ClassNotFoundException {
+        System.out.println("Processing message: " + message.getCommand());
         switch (message.getCommand()) {
-            case "CreateNewAccount" :
+            case "CreateNewAccount":
                 int initFunds = (Integer) message.splitCommand(1);
                 String nameOfAgent = (String) message.splitCommand(2);
                 this.account = new Account(initFunds, Bank.accountHashMap);
                 this.account.setName(nameOfAgent);
                 Bank.accountHashMap.put(account.getAccountNum(), account);
                 sendMessageToAgent(new Message("", account.getAccountNum()));
+                System.out.println("Account created for: " + nameOfAgent);
                 break;
-
-            case "SendBlockedMoneyToAuction" :
+            case "SendBlockedMoneyToAuction":
                 int accountNumOfAuction = (Integer) message.splitCommand(1);
                 Account auctionAccount = Bank.accountHashMap.get(accountNumOfAuction);
                 auctionAccount.depositMoney(account.getHeld());
                 account.setNewBalance();
                 break;
-
-            case "ViewCurrentAuctions" :
+            case "ViewCurrentAuctions":
                 sendMessageToAgent(new Message("", Bank.auctionHouseAddressHashMap));
                 break;
-
-            case "availableBalance" :
+            case "availableBalance":
                 sendMessageToAgent(new Message("", account.getMoney()));
                 break;
-
-            case "totalBalance" :
+            case "totalBalance":
                 sendMessageToAgent(new Message("", account.getMoney()));
                 break;
-
-            case "Terminates" :
+            case "Terminates":
                 Bank.accountHashMap.remove(account.getAccountNum());
                 break;
         }
     }
 
     private void sendMessageToAgent(Message message) throws IOException {
-        ObjectOutputStream objOutput = null;
-
-        try {
-            objOutput = new ObjectOutputStream(socket.getOutputStream());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+        ObjectOutputStream objOutput = new ObjectOutputStream(socket.getOutputStream());
         objOutput.writeObject(message);
     }
 
     public void run() {
         while (true) {
-            ObjectInputStream objectInputStream = null;
-
             try {
-                objectInputStream = new ObjectInputStream(socket.getInputStream());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            try {
+                ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
                 Message message = (Message) objectInputStream.readObject();
                 if(message.getCommand().equals("Terminates")) {
                     processMessage(message);
@@ -81,10 +61,9 @@ public class AgentHandler extends Thread {
                 } else {
                     processMessage(message);
                 }
-            } catch (IOException e) {
+            } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
+                break;
             }
         }
     }
