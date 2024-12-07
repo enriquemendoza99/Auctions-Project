@@ -1,4 +1,3 @@
-// File: Agent/Agent.java
 package Agent;
 
 import constants.Message;
