@@ -9,8 +9,8 @@ public class BankConnection {
     private ObjectOutputStream out;
     private ObjectInputStream in;
 
-    public BankConnection(int bankPort) throws IOException {
-        this.socket = new Socket("localhost", bankPort);
+    public BankConnection(String host, int bankPort) throws IOException {
+        this.socket = new Socket(host, bankPort);
         this.out = new ObjectOutputStream(socket.getOutputStream());
         this.in = new ObjectInputStream(socket.getInputStream());
     }

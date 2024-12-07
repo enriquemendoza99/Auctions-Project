@@ -16,17 +16,17 @@ public class Agent {
     private boolean running;
 
     public static void main(String[] args) {
-        if (args.length < 3) {
-            System.out.println("Usage: java Agent.Agent BANK_PORT NAME INITIAL_BALANCE [auto]");
+        if (args.length < 4) {
+            System.out.println("Usage: java Agent.Agent BANK_HOST BANK_PORT NAME INITIAL_BALANCE [auto]");
             System.exit(0);
         }
 
         try {
             System.out.println("Starting Agent...");
-            boolean isAuto = args.length > 3 && args[3].equals("auto");
+            boolean isAuto = args.length > 4 && args[4].equals("auto");
             Agent agent = new Agent(isAuto);
-            System.out.println("Connecting to bank on port " + args[0]);
-            agent.start(Integer.parseInt(args[0]), args[1], Integer.parseInt(args[2]));
+            System.out.println("Connecting to bank at " + args[0] + ":" + args[1]);
+            agent.start(args[0], Integer.parseInt(args[1]), args[2], Integer.parseInt(args[3]));
             agent.showMenu(); // Call the showMenu() method after the agent has started
         } catch (IOException | ClassNotFoundException e) {
             System.out.println("Error starting Agent:");
@@ -42,10 +42,10 @@ public class Agent {
         this.auctionManager = new AuctionManager();
     }
 
-    public void start(int bankPort, String name, int initialBalance) throws IOException, ClassNotFoundException {
+    public void start(String host, int bankPort, String name, int initialBalance) throws IOException, ClassNotFoundException {
         try {
-            System.out.println("Connecting to bank at localhost:" + bankPort);
-            bankConnection = new BankConnection(bankPort);
+            System.out.println("Connecting to bank at " + host + ":" + bankPort);
+            bankConnection = new BankConnection(host, bankPort);
             System.out.println("Connected to bank");
 
             System.out.println("Registering with bank...");
