@@ -2,6 +2,7 @@ package Agent;
 
 import constants.Message;
 import constants.AuctionHouseAddress;
+import Bank.AuctionInfo;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -82,8 +83,9 @@ public class Agent {
         System.out.println("Requesting auction house list...");
         bankConnection.sendMessage(new Message("ViewCurrentAuctions"));
         Message response = bankConnection.receiveMessage();
-        HashMap<?, AuctionHouseAddress> auctions =
-                (HashMap<?, AuctionHouseAddress>) response.splitCommand(1);
+        @SuppressWarnings("unchecked")
+        HashMap<AuctionInfo, AuctionHouseAddress> auctions =
+                (HashMap<AuctionInfo, AuctionHouseAddress>) response.splitCommand(1);
 
         if (auctions.isEmpty()) {
             System.out.println("No auction houses available.");
@@ -91,7 +93,7 @@ public class Agent {
         }
 
         System.out.println("\nAvailable Auction Houses:");
-        for (Map.Entry<?, AuctionHouseAddress> entry : auctions.entrySet()) {
+        for (Map.Entry<AuctionInfo, AuctionHouseAddress> entry : auctions.entrySet()) {
             AuctionHouseAddress addr = entry.getValue();
             String addressKey = addr.getIpAddress() + ":" + addr.getPortNum();
             System.out.println(addressKey);
