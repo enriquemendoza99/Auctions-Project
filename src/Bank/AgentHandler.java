@@ -20,25 +20,31 @@ public class AgentHandler extends Thread {
                 String nameOfAgent = (String) message.splitCommand(2);
                 this.account = new Account(initFunds, Bank.accountHashMap);
                 this.account.setName(nameOfAgent);
+
                 Bank.accountHashMap.put(account.getAccountNum(), account);
                 sendMessageToAgent(new Message("", account.getAccountNum()));
                 System.out.println("Account created for: " + nameOfAgent);
                 break;
+
             case "SendBlockedMoneyToAuction":
                 int accountNumOfAuction = (Integer) message.splitCommand(1);
                 Account auctionAccount = Bank.accountHashMap.get(accountNumOfAuction);
                 auctionAccount.depositMoney(account.getHeld());
                 account.setNewBalance();
                 break;
+
             case "ViewCurrentAuctions":
                 sendMessageToAgent(new Message("", Bank.auctionHouseAddressHashMap));
                 break;
+
             case "availableBalance":
-                sendMessageToAgent(new Message("", account.getMoney()));
+                sendMessageToAgent(new Message("", account.getUsableMoney()));
                 break;
+
             case "totalBalance":
                 sendMessageToAgent(new Message("", account.getMoney()));
                 break;
+
             case "Terminates":
                 Bank.accountHashMap.remove(account.getAccountNum());
                 break;

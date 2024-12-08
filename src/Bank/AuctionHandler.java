@@ -27,12 +27,14 @@ public class AuctionHandler extends Thread {
                 int balance = (Bank.accountHashMap.get(message.splitCommand(1)).getMoney());
                 checkBalance.writeObject(new Message("", balance));
                 break;
+
             case "Create New Account" :
                 this.account = new Account(0, Bank.accountHashMap);
                 Bank.accountHashMap.put(account.getAccountNum(), account);
                 ObjectOutputStream sender = new ObjectOutputStream(socket.getOutputStream());
                 sender.writeObject(new Message("Account Number", account.getAccountNum()));
                 break;
+
             case "Auction Address" :
                 Random rand = new Random();
                 String auctionID = "AuctionHouse" + rand.nextInt(10000);
@@ -41,12 +43,15 @@ public class AuctionHandler extends Thread {
                 Bank.auctionHouseAddressHashMap.put(new AuctionInfo(account.getAccountNum(), auctionID),
                         auctionHouseAddress);
                 break;
+
             case "Block Funds" :
+                this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
                 this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
                 System.out.println("Block funds from account number " + this.agentAccount.getAccountNum() +
                         " with amount" + message.splitCommand(2));
                 this.agentAccount.setBlockFunds((int) message.splitCommand(2));
                 break;
+
             case "Unblock Funds" :
                 this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
                 this.agentAccount.setUnBlockFunds((Integer) message.splitCommand(2));

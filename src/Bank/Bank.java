@@ -11,7 +11,7 @@ import java.util.HashMap;
 public class Bank extends Thread {
     public static HashMap<Integer, Account> accountHashMap = new HashMap<>();
     public static HashMap<AuctionInfo, AuctionHouseAddress> auctionHouseAddressHashMap =
-            new HashMap<AuctionInfo, AuctionHouseAddress>();
+            new HashMap<>();
     private static final boolean LOCAL = false;
     private ServerSocket bankSocket;
 
