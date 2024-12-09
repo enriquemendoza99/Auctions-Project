@@ -2,9 +2,13 @@ package Bank;
 
 import constants.AuctionHouseAddress;
 import constants.Message;
+import AuctionHouse.Item;
 import java.io.*;
 import java.net.Socket;
 import java.util.Random;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 public class AuctionHandler extends Thread {
     private Socket socket;
@@ -31,61 +35,66 @@ public class AuctionHandler extends Thread {
     private void processMessage(Message message) throws IOException {
         System.out.println("Processing auction message: " + message.getCommand());
 
-        switch(message.getCommand()) {
-            case "Create New Account":
-                this.account = new Account(0, Bank.accountHashMap);
-                Bank.accountHashMap.put(account.getAccountNum(), account);
-                out.writeObject(new Message("AccountCreated", account.getAccountNum()));
-                out.flush();
-                break;
+        try {
+            switch(message.getCommand()) {
+                case "Create New Account":
+                    this.account = new Account(0, Bank.accountHashMap);
+                    Bank.accountHashMap.put(account.getAccountNum(), account);
+                    out.writeObject(new Message("AccountCreated", account.getAccountNum()));
+                    out.flush();
+                    System.out.println("Created auction account: " + account.getAccountNum());
+                    break;
 
-            case "Auction Address":
-                Random rand = new Random();
-                String auctionID = "AuctionHouse" + rand.nextInt(10000);
-                this.auctionHouseAddress = new AuctionHouseAddress(
-                        (String) message.splitCommand(1),
-                        (Integer) message.splitCommand(2)
-                );
-                Bank.auctionHouseAddressHashMap.put(
-                        new AuctionInfo(account.getAccountNum(), auctionID),
-                        auctionHouseAddress
-                );
-                out.writeObject(new Message("AddressRegistered"));
-                out.flush();
-                break;
+                case "Auction Address":
+                    String ipAddress = (String) message.splitCommand(1);
+                    Integer portNum = (Integer) message.splitCommand(2);
+                    Object info = message.splitCommand(3);
 
-            case "Block Funds":
-                this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
-                System.out.println("Blocking funds from account " +
-                        this.agentAccount.getAccountNum() +
-                        " amount: " + message.splitCommand(2));
-                this.agentAccount.setBlockFunds((Integer) message.splitCommand(2));
-                out.writeObject(new Message("FundsBlocked"));
-                out.flush();
-                break;
+                    if (info instanceof AuctionInfo) {
+                        AuctionInfo auctionInfo = (AuctionInfo) info;
+                        this.auctionHouseAddress = new AuctionHouseAddress(ipAddress, portNum);
+                        Bank.auctionHouseAddressHashMap.put(auctionInfo, auctionHouseAddress);
+                        System.out.println("Registered auction house with " + auctionInfo.getItems().size() + " items");
+                    }
 
-            case "Unblock Funds":
-                this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
-                System.out.println("Unblocking funds from account " +
-                        this.agentAccount.getAccountNum() +
-                        " amount: " + message.splitCommand(2));
-                this.agentAccount.setUnBlockFunds((Integer) message.splitCommand(2));
-                out.writeObject(new Message("FundsUnblocked"));
-                out.flush();
-                break;
+                    out.writeObject(new Message("AddressRegistered"));
+                    out.flush();
+                    break;
 
-            case "Check Balance":
-                int balance = Bank.accountHashMap.get(message.splitCommand(1)).getMoney();
-                out.writeObject(new Message("Balance", balance));
-                out.flush();
-                break;
+                case "Block Funds":
+                    this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
+                    int amount = (Integer) message.splitCommand(2);
+                    System.out.println("Blocking funds from account " +
+                            this.agentAccount.getAccountNum() +
+                            " amount: " + amount);
+                    this.agentAccount.setBlockFunds(amount);
+                    out.writeObject(new Message("FundsBlocked"));
+                    out.flush();
+                    break;
 
-            case "Terminates":
-                Bank.accountHashMap.remove(account.getAccountNum());
-                Bank.auctionHouseAddressHashMap.remove(auctionHouseAddress);
-                out.writeObject(new Message("Terminated"));
-                out.flush();
-                break;
+                case "Unblock Funds":
+                    this.agentAccount = Bank.accountHashMap.get(message.splitCommand(1));
+                    amount = (Integer) message.splitCommand(2);
+                    System.out.println("Unblocking funds from account " +
+                            this.agentAccount.getAccountNum() +
+                            " amount: " + amount);
+                    this.agentAccount.setUnBlockFunds(amount);
+                    out.writeObject(new Message("FundsUnblocked"));
+                    out.flush();
+                    break;
+
+                case "Terminates":
+                    Bank.accountHashMap.remove(account.getAccountNum());
+                    Bank.auctionHouseAddressHashMap.values().remove(auctionHouseAddress);
+                    out.writeObject(new Message("Terminated"));
+                    out.flush();
+                    break;
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing auction message: " + e.getMessage());
+            e.printStackTrace();
+            out.writeObject(new Message("Error", e.getMessage()));
+            out.flush();
         }
     }
 

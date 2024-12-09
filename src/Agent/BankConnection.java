@@ -1,8 +1,10 @@
 package Agent;
 
 import constants.Message;
+import constants.AuctionHouseAddress;
 import java.io.*;
 import java.net.Socket;
+import java.util.HashMap;
 
 public class BankConnection {
     private Socket socket;
@@ -67,6 +69,26 @@ public class BankConnection {
             socket.close();
         } catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
+        }
+    }
+    public HashMap<Object, AuctionHouseAddress> getAvailableAuctions() throws IOException, ClassNotFoundException {
+        try {
+            System.out.println("Requesting available auctions from bank");
+            out.writeObject(new Message("ViewCurrentAuctions"));
+            out.flush();
+
+            Message response = (Message) in.readObject();
+            if ("AuctionList".equals(response.getCommand())) {
+                @SuppressWarnings("unchecked")
+                HashMap<Object, AuctionHouseAddress> auctions =
+                        (HashMap<Object, AuctionHouseAddress>) response.splitCommand(1);
+                return auctions;
+            } else {
+                throw new IOException("Unexpected response when requesting auctions: " + response.getCommand());
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting available auctions: " + e.getMessage());
+            throw e;
         }
     }
 }

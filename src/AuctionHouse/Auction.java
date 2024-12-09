@@ -4,9 +4,9 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class Auction {
-    private String auctionId;
-    private Item item;
-    private AtomicReference<Double> currentBid;
+    private final String auctionId;
+    private final Item item;
+    private final AtomicReference<Double> currentBid;
     private int currentBidder;
     private boolean active;
 
@@ -24,6 +24,7 @@ public class Auction {
 
         currentBid.set(amount);
         currentBidder = accountNum;
+        item.setCurrentBid(amount, accountNum);
         return true;
     }
 

@@ -1,9 +1,8 @@
 package Agent;
 
-import constants.Message;
 import constants.AuctionHouseAddress;
-import java.io.*;
-import java.net.Socket;
+import java.io.IOException;
+import java.util.HashMap;
 
 public class Agent {
     private int accountNum;
@@ -17,15 +16,12 @@ public class Agent {
         try {
             System.out.println("Attempting to connect to bank at " + bankHost + ":" + bankPort);
 
-            // Connect to bank
             this.bankConnection = new BankConnection(bankHost, bankPort);
             System.out.println("Connected to bank successfully");
 
-            // Create account and get account number
             this.accountNum = bankConnection.createAccount(agentName, initialFunds);
             System.out.println("Created account with number: " + accountNum);
 
-            // Initialize components
             this.balance = initialFunds;
             this.auctionManager = new AuctionManager(this);
             this.userInterface = new UserInterface(this);
@@ -67,8 +63,8 @@ public class Agent {
         auctionManager.placeBid(auctionId, amount);
     }
 
-    public void registerWithAuctionHouse(AuctionHouseAddress address) {
-        auctionManager.connectToAuctionHouse(address);
+    public HashMap<Object, AuctionHouseAddress> getAvailableAuctions() throws IOException, ClassNotFoundException {
+        return bankConnection.getAvailableAuctions();
     }
 
     public static void main(String[] args) {
