@@ -1,149 +1,155 @@
 package AuctionHouse;
 
-import constants.AuctionHouseAddress;
 import constants.Message;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import constants.AuctionHouseAddress;
 
 public class AuctionHouse {
     private ServerSocket serverSocket;
+    private List<Item> items;
+    private Map<String, Auction> activeAuctions;
     private Socket bankSocket;
+    private int accountNum;
     private ObjectOutputStream bankOut;
     private ObjectInputStream bankIn;
-    private List<Item> items;
-    private int accountNum;
-    private HashMap<String, Timer> bidTimers;
-    private boolean running;
+
+    public AuctionHouse(String bankHost, int bankPort) throws IOException, ClassNotFoundException {
+        this.serverSocket = new ServerSocket(0);
+        System.out.println("Server socket created on port: " + serverSocket.getLocalPort());
+
+        this.items = generateItems();
+        this.activeAuctions = new HashMap<>();
+        connectToBank(bankHost, bankPort);
+        initializeAuctions();
+    }
+
+    private void connectToBank(String bankHost, int bankPort) throws IOException, ClassNotFoundException {
+        try {
+            this.bankSocket = new Socket(bankHost, bankPort);
+            System.out.println("Connected to bank successfully");
+
+            // Create streams
+            this.bankOut = new ObjectOutputStream(bankSocket.getOutputStream());
+            bankOut.flush();
+            this.bankIn = new ObjectInputStream(bankSocket.getInputStream());
+
+            // Send initial identification
+            System.out.println("Sending NewAuctionHouse message to bank...");
+            bankOut.writeObject(new Message("NewAuctionHouse"));
+            bankOut.flush();
+
+            // Wait for ready message
+            Message response = (Message) bankIn.readObject();
+            if (!"Ready".equals(response.getCommand())) {
+                throw new IOException("Unexpected response: " + response.getCommand());
+            }
+
+            // Create account
+            System.out.println("Requesting new bank account...");
+            bankOut.writeObject(new Message("Create New Account"));
+            bankOut.flush();
+
+            response = (Message) bankIn.readObject();
+            if ("AccountCreated".equals(response.getCommand())) {
+                this.accountNum = (Integer) response.splitCommand(1);
+                System.out.println("Account created with number: " + this.accountNum);
+            } else {
+                throw new IOException("Failed to create account");
+            }
+
+            // Register address
+            String localAddress = InetAddress.getLocalHost().getHostAddress();
+            bankOut.writeObject(new Message("Auction Address", localAddress, serverSocket.getLocalPort()));
+            bankOut.flush();
+
+            response = (Message) bankIn.readObject();
+            if (!"AddressRegistered".equals(response.getCommand())) {
+                throw new IOException("Failed to register address");
+            }
+            System.out.println("Address registered with bank");
+
+        } catch (IOException e) {
+            System.err.println("Error connecting to bank: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    private List<Item> generateItems() {
+        List<Item> items = new ArrayList<>();
+        items.add(new Item("Antique Vase", 1000.0, "A beautiful Ming dynasty vase"));
+        items.add(new Item("Vintage Watch", 500.0, "1950s Rolex Submariner"));
+        items.add(new Item("Oil Painting", 2000.0, "19th century landscape"));
+        System.out.println("Generated " + items.size() + " items for auction");
+        return items;
+    }
+
+    private void initializeAuctions() {
+        for (Item item : items) {
+            Auction auction = new Auction(item);
+            activeAuctions.put(auction.getAuctionId(), auction);
+            System.out.println("Created auction for item: " + item.getName() +
+                    " with starting price: $" + item.getStartingPrice());
+        }
+    }
+
+    public Auction getAuction(String auctionId) {
+        return activeAuctions.get(auctionId);
+    }
+
+    public List<Item> getAvailableItems() {
+        List<Item> availableItems = new ArrayList<>();
+        for (Auction auction : activeAuctions.values()) {
+            if (auction.isActive()) {
+                availableItems.add(auction.getItem());
+            }
+        }
+        return availableItems;
+    }
+
+    public void start() {
+        System.out.println("\nAuctionHouse is now running on port " + serverSocket.getLocalPort());
+        System.out.println("Waiting for agents to connect...\n");
+
+        while (true) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New agent connected from: " + clientSocket.getInetAddress());
+                new AgentHandler(clientSocket, this).start();
+            } catch (IOException e) {
+                System.err.println("Error accepting client connection: " + e.getMessage());
+            }
+        }
+    }
 
     public static void main(String[] args) {
         if (args.length != 2) {
-            System.out.println("Usage: java AuctionHouse.AuctionHouse BANK_PORT YOUR_PORT");
-            System.exit(0);
-        }
-        try {
-            System.out.println("Starting Auction House...");
-            AuctionHouse auctionHouse = new AuctionHouse();
-            auctionHouse.start(Integer.parseInt(args[0]), Integer.parseInt(args[1]));
-        } catch (Exception e) {
-            System.out.println("Error starting Auction House: ");
-            e.printStackTrace();
-        }
-    }
-
-    public AuctionHouse() {
-        items = new ArrayList<>();
-        bidTimers = new HashMap<>();
-        running = true;
-        initializeItems();
-    }
-
-    private void initializeItems() {
-        System.out.println("Initializing items for auction...");
-        items.add(new Item("Vintage Watch", "Rare 1950s chronograph", 500));
-        items.add(new Item("Antique Vase", "Ming dynasty porcelain", 1000));
-        items.add(new Item("Rare Painting", "19th century landscape", 2000));
-    }
-
-    public void start(int bankPort, int ownPort) throws IOException, ClassNotFoundException {
-        System.out.println("Connecting to bank on port " + bankPort);
-        bankSocket = new Socket("localhost", bankPort);
-        bankOut = new ObjectOutputStream(bankSocket.getOutputStream());
-        bankIn = new ObjectInputStream(bankSocket.getInputStream());
-
-        System.out.println("Registering with bank...");
-        bankOut.writeObject(new Message("NewAuctionHouse"));
-        bankOut.writeObject(new Message("Create New Account"));
-
-        Message response = (Message) bankIn.readObject();
-        accountNum = (Integer) response.splitCommand(1);
-        System.out.println("Received account number: " + accountNum);
-
-        serverSocket = new ServerSocket(ownPort);
-        String hostAddress = InetAddress.getLocalHost().getHostAddress();
-
-        System.out.println("Sending address info to bank: " + hostAddress + ":" + ownPort);
-        bankOut.writeObject(new Message("Auction Address", hostAddress, ownPort));
-        System.out.println("Auction House started on port " + ownPort);
-
-        System.out.println("Initial items:");
-        for (Item item : items) {
-            System.out.println(" - " + item.getName() + " (Minimum bid: $" + item.getMinimumBid() + ")");
-        }
-
-        System.out.println("Waiting for agent connections...");
-
-        while (running) {
-            try {
-                Socket agentSocket = serverSocket.accept();
-                System.out.println("New agent connected from: " + agentSocket.getInetAddress());
-                new Thread(new AgentHandler(agentSocket, this)).start();
-            } catch (IOException e) {
-                if (running) e.printStackTrace();
-            }
-        }
-    }
-
-    public List<Item> getItems() {
-        return new ArrayList<>(items);
-    }
-
-    public void processBid(String itemId, int agentAccount, int bidAmount, AgentHandler handler) {
-        Item item = findItem(itemId);
-        if (item == null || bidAmount <= item.getCurrentBid()) {
-            try {
-                handler.sendMessage(new Message("rejection"));
-                System.out.println("Bid rejected: " + bidAmount + " for item " + itemId);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return;
+            System.out.println("Usage: java AuctionHouse <bank-host> <bank-port>");
+            System.exit(1);
         }
 
         try {
-            System.out.println("Processing bid: " + bidAmount + " for item " + itemId);
-            bankOut.writeObject(new Message("Block Funds", agentAccount, bidAmount));
-            item.setCurrentBid(bidAmount);
-            item.setCurrentBidder(agentAccount);
-            handler.sendMessage(new Message("acceptance"));
+            String bankHost = args[0];
+            int bankPort = Integer.parseInt(args[1]);
 
-            Timer oldTimer = bidTimers.get(itemId);
-            if (oldTimer != null) {
-                oldTimer.cancel();
-            }
+            System.out.println("Starting AuctionHouse with following parameters:");
+            System.out.println("Bank Host: " + bankHost);
+            System.out.println("Bank Port: " + bankPort);
 
-            Timer timer = new Timer();
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    try {
-                        handleWinningBid(item);
-                        handler.sendMessage(new Message("winner", item.getId()));
-                        System.out.println("Auction completed: Item " + itemId + " sold for " + bidAmount);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }, 30000);
-
-            bidTimers.put(itemId, timer);
+            AuctionHouse auctionHouse = new AuctionHouse(bankHost, bankPort);
+            auctionHouse.start();
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Failed to start AuctionHouse: " + e.getMessage());
+            System.err.println("Please ensure the bank is running at the specified host and port");
+            System.exit(1);
+        } catch (ClassNotFoundException e) {
+            System.err.println("Error with message serialization: " + e.getMessage());
+            System.exit(1);
+        } catch (NumberFormatException e) {
+            System.err.println("Error: Port must be a number");
+            System.exit(1);
         }
-    }
-
-    private void handleWinningBid(Item item) {
-        items.remove(item);
-        if (items.size() < 3) {
-            items.add(new Item("New Item", "Recently added auction item", 500));
-            System.out.println("Added new item to maintain minimum inventory");
-        }
-    }
-
-    private Item findItem(String itemId) {
-        return items.stream()
-                .filter(item -> item.getId().equals(itemId))
-                .findFirst()
-                .orElse(null);
     }
 }
+

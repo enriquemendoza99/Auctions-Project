@@ -4,56 +4,70 @@ import constants.Message;
 import java.io.*;
 import java.net.Socket;
 
-public class AgentHandler implements Runnable {
-    private Socket socket;
+public class AgentHandler extends Thread {
+    private Socket agentSocket;
+    private AuctionHouse auctionHouse;
     private ObjectInputStream in;
     private ObjectOutputStream out;
-    private AuctionHouse auctionHouse;
-    private boolean running;
+    private int agentAccountNum;
 
-    public AgentHandler(Socket socket, AuctionHouse auctionHouse) throws IOException {
-        this.socket = socket;
+    public AgentHandler(Socket agentSocket, AuctionHouse auctionHouse) {
+        this.agentSocket = agentSocket;
         this.auctionHouse = auctionHouse;
-        this.out = new ObjectOutputStream(socket.getOutputStream());
-        this.in = new ObjectInputStream(socket.getInputStream());
-        this.running = true;
+        try {
+            this.out = new ObjectOutputStream(agentSocket.getOutputStream());
+            this.in = new ObjectInputStream(agentSocket.getInputStream());
+        } catch (IOException e) {
+            System.err.println("Error creating agent handler: " + e.getMessage());
+        }
     }
 
     @Override
     public void run() {
-        while (running) {
-            try {
+        try {
+            while (true) {
                 Message message = (Message) in.readObject();
                 processMessage(message);
-            } catch (IOException | ClassNotFoundException e) {
-                running = false;
-                try {
-                    socket.close();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error in agent handler: " + e.getMessage());
+        } finally {
+            try {
+                agentSocket.close();
+            } catch (IOException e) {
+                System.err.println("Error closing agent socket: " + e.getMessage());
             }
         }
     }
 
-    public void sendMessage(Message message) throws IOException {
-        out.writeObject(message);
-        out.flush();
-    }
-
     private void processMessage(Message message) throws IOException {
-        System.out.println("Received message from agent: " + message.getCommand());
         switch (message.getCommand()) {
-            case "GetItems":
-                sendMessage(new Message("ItemList", auctionHouse.getItems()));
+            case "RegisterAgent":
+                agentAccountNum = (Integer) message.splitCommand(1);
                 break;
-            case "Bid":
-                String itemId = (String) message.splitCommand(1);
-                int agentAccount = (Integer) message.splitCommand(2);
-                int bidAmount = (Integer) message.splitCommand(3);
-                auctionHouse.processBid(itemId, agentAccount, bidAmount, this);
+            case "PlaceBid":
+                handleBid(message);
+                break;
+            case "RequestItems":
+                sendAvailableItems();
                 break;
         }
     }
-}
 
+    private void handleBid(Message message) throws IOException {
+        int accountNum = (Integer) message.splitCommand(1);
+        double amount = (Double) message.splitCommand(2);
+        String auctionId = (String) message.splitCommand(3);
+
+        Auction auction = auctionHouse.getAuction(auctionId);
+        if (auction != null && auction.placeBid(accountNum, amount)) {
+            out.writeObject(new Message("BidAccepted", auctionId, amount));
+        } else {
+            out.writeObject(new Message("BidRejected", auctionId));
+        }
+    }
+
+    private void sendAvailableItems() throws IOException {
+        out.writeObject(new Message("ItemList", auctionHouse.getAvailableItems()));
+    }
+}

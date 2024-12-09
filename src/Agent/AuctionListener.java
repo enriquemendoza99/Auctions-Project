@@ -2,17 +2,23 @@ package Agent;
 
 import constants.Message;
 import java.io.*;
-import java.net.*;
+import java.net.Socket;
 
-public class AuctionListener implements Runnable {
-    private Socket socket;
+public class AuctionListener extends Thread {
+    private Socket auctionSocket;
+    private Agent agent;
     private ObjectInputStream in;
     private boolean running;
 
-    public AuctionListener(Socket socket) throws IOException {
-        this.socket = socket;
-        this.in = new ObjectInputStream(socket.getInputStream());
+    public AuctionListener(Socket auctionSocket, Agent agent) {
+        this.auctionSocket = auctionSocket;
+        this.agent = agent;
         this.running = true;
+        try {
+            this.in = new ObjectInputStream(auctionSocket.getInputStream());
+        } catch (IOException e) {
+            System.err.println("Error creating auction listener: " + e.getMessage());
+        }
     }
 
     @Override
@@ -20,54 +26,32 @@ public class AuctionListener implements Runnable {
         while (running) {
             try {
                 Message message = (Message) in.readObject();
-                processAuctionMessage(message);
-            } catch (Exception e) {
-                if (running) {
-                    System.out.println("Error in auction listener:");
-                    e.printStackTrace();
-                }
-                break;
+                processMessage(message);
+            } catch (IOException | ClassNotFoundException e) {
+                System.err.println("Error in auction listener: " + e.getMessage());
+                running = false;
             }
         }
     }
 
-    private void processAuctionMessage(Message message) {
-        System.out.println("\nReceived from auction house: " + message.getCommand());
-
+    private void processMessage(Message message) {
         switch (message.getCommand()) {
-            case "ItemList":
-                displayItems(message);
+            case "BidAccepted":
+                System.out.println("Bid accepted for item: " + message.splitCommand(1));
                 break;
-            case "acceptance":
-                System.out.println("Bid accepted!");
+            case "BidRejected":
+                System.out.println("Bid rejected: " + message.splitCommand(1));
                 break;
-            case "rejection":
-                System.out.println("Bid rejected!");
+            case "AuctionWon":
+                System.out.println("Won auction for item: " + message.splitCommand(1));
                 break;
-            case "outbid":
-                System.out.println("You have been outbid!");
+            case "OutBid":
+                System.out.println("Outbid on item: " + message.splitCommand(1));
                 break;
-            case "winner":
-                System.out.println("Congratulations! You won the auction for item: " + message.splitCommand(1));
-                break;
-            default:
-                System.out.println("Unknown message: " + message.getCommand());
         }
     }
 
-    private void displayItems(Message message) {
-        try {
-            java.util.List<?> items = (java.util.List<?>) message.splitCommand(1);
-            System.out.println("\nAvailable Items:");
-            for (Object item : items) {
-                System.out.println(item.toString());
-            }
-        } catch (Exception e) {
-            System.out.println("Error displaying items: " + e.getMessage());
-        }
-    }
-
-    public void stop() {
+    public void stopListening() {
         running = false;
     }
 }

@@ -2,58 +2,73 @@ package Bank;
 
 import constants.AuctionHouseAddress;
 import constants.Message;
-
-import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.net.*;
 import java.util.HashMap;
 
-public class Bank extends Thread {
+public class Bank {
     public static HashMap<Integer, Account> accountHashMap = new HashMap<>();
-    public static HashMap<AuctionInfo, AuctionHouseAddress> auctionHouseAddressHashMap =
-            new HashMap<>();
-    private static final boolean LOCAL = false;
+    public static HashMap<AuctionInfo, AuctionHouseAddress> auctionHouseAddressHashMap = new HashMap<>();
     private ServerSocket bankSocket;
 
-    public static void main(String[] args)
-        throws IOException, ClassNotFoundException {
-        Bank bank = new Bank();
-        if(args.length != 1 && !LOCAL) {
-            System.out.println("Wrong Arguments \n" +
-                    "Usage: java -jar Bank.jar PORT_NUM_OF_BANK");
-            System.exit(0);
-        }
-        if(LOCAL) {
-            bank.start(8080);
-        } else {
-            bank.start(Integer.parseInt(args[0]));
+    public void start(int port) {
+        try {
+            bankSocket = new ServerSocket(port);
+            System.out.println("Bank server started on port " + port);
+            System.out.println("Waiting for connections...");
+
+            while(true) {
+                try {
+                    // Accept new connection
+                    Socket client = bankSocket.accept();
+                    System.out.println("\nNew client connected from: " + client.getInetAddress());
+
+                    // Create streams
+                    ObjectOutputStream out = new ObjectOutputStream(client.getOutputStream());
+                    out.flush();
+                    ObjectInputStream in = new ObjectInputStream(client.getInputStream());
+                    System.out.println("Streams established");
+
+                    // Read initial message
+                    Message message = (Message) in.readObject();
+                    System.out.println("Received initial message: " + message.getCommand());
+
+                    switch(message.getCommand()) {
+                        case "NewAgent":
+                            System.out.println("Starting new agent handler");
+                            AgentHandler agentHandler = new AgentHandler(client, in, out);
+                            agentHandler.start();
+                            System.out.println("Agent handler started");
+                            break;
+                        case "NewAuctionHouse":
+                            System.out.println("Starting new auction house handler");
+                            AuctionHandler auctionHandler = new AuctionHandler(client, in, out);
+                            auctionHandler.start();
+                            System.out.println("Auction handler started");
+                            break;
+                        default:
+                            System.out.println("Unknown client type");
+                            out.writeObject(new Message("Error", "Unknown client type"));
+                            out.flush();
+                            client.close();
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error handling client: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Could not listen on port " + port);
+            System.exit(-1);
         }
     }
 
-    public void start(int port) throws IOException, ClassNotFoundException {
-        Socket client;
-        Message message;
-        bankSocket = new ServerSocket(port);
-        System.out.println("Bank is running on port " + port);
-        System.out.println("Ready to accept new clients...");
-
-        while(true) {
-            try {
-                System.out.println("Ready to accept new clients...");
-                client = bankSocket.accept();
-                System.out.println("New client connected from: " + client.getInetAddress());
-                message = (Message) (new ObjectInputStream(client.getInputStream())).readObject();
-                if(message.getCommand().equals("NewAgent")) {
-                    new Thread(new AgentHandler(client)).start();
-                    System.out.println("Connected to agent");
-                } else if(message.getCommand().equals("NewAuctionHouse")) {
-                    new Thread(new AuctionHandler(client)).start();
-                    System.out.println("Connected to auction-house");
-                }
-            } catch (UnknownHostException u) {
-                System.out.println("Invalid client port or IP sent to bank");
-                break;
-            }
+    public static void main(String[] args) {
+        if(args.length != 1) {
+            System.out.println("Usage: java Bank <port-number>");
+            System.exit(1);
         }
+        Bank bank = new Bank();
+        bank.start(Integer.parseInt(args[0]));
     }
 }

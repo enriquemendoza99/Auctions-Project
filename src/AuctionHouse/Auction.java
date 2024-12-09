@@ -1,70 +1,53 @@
 package AuctionHouse;
 
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class Auction {
-    private static final int AUCTION_DURATION = 30000; // 30 seconds
+    private String auctionId;
     private Item item;
-    private Timer timer;
-    private AuctionCallback callback;
+    private AtomicReference<Double> currentBid;
+    private int currentBidder;
     private boolean active;
 
-    public interface AuctionCallback {
-        void onAuctionComplete(Item item);
-        void onBidAccepted(Item item);
-    }
-
-    public Auction(Item item, AuctionCallback callback) {
+    public Auction(Item item) {
+        this.auctionId = UUID.randomUUID().toString();
         this.item = item;
-        this.callback = callback;
+        this.currentBid = new AtomicReference<>(item.getStartingPrice());
         this.active = true;
     }
 
-    public void startTimer() {
-        timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if (active) {
-                    completeAuction();
-                }
-            }
-        }, AUCTION_DURATION);
+    public synchronized boolean placeBid(int accountNum, double amount) {
+        if (!active || amount <= currentBid.get()) {
+            return false;
+        }
+
+        currentBid.set(amount);
+        currentBidder = accountNum;
+        return true;
     }
 
-    public void placeBid(int bidder, int amount) {
-        if (!active || amount <= item.getCurrentBid()) {
-            return;
-        }
-
-        item.setCurrentBid(amount);
-        item.setCurrentBidder(bidder);
-        callback.onBidAccepted(item);
-
-        // Reset timer for new bid
-        if (timer != null) {
-            timer.cancel();
-        }
-        startTimer();
+    public String getAuctionId() {
+        return auctionId;
     }
 
-    public void completeAuction() {
-        if (!active) return;
+    public Item getItem() {
+        return item;
+    }
 
-        active = false;
-        if (timer != null) {
-            timer.cancel();
-        }
-        item.setSold(true);
-        callback.onAuctionComplete(item);
+    public double getCurrentBid() {
+        return currentBid.get();
+    }
+
+    public int getCurrentBidder() {
+        return currentBidder;
     }
 
     public boolean isActive() {
         return active;
     }
 
-    public Item getItem() {
-        return item;
+    public void closeAuction() {
+        this.active = false;
     }
 }

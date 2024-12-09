@@ -2,158 +2,98 @@ package Agent;
 
 import constants.Message;
 import constants.AuctionHouseAddress;
-import Bank.AuctionInfo;
 import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.net.Socket;
 
 public class Agent {
+    private int accountNum;
     private BankConnection bankConnection;
     private AuctionManager auctionManager;
-    private int accountNum;
     private UserInterface userInterface;
-    private boolean isAuto;
-    private boolean running;
+    private AutoBidder autoBidder;
+    private double balance;
 
-    public static void main(String[] args) {
-        if (args.length < 4) {
-            System.out.println("Usage: java Agent.Agent BANK_HOST BANK_PORT NAME INITIAL_BALANCE [auto]");
-            System.exit(0);
-        }
-
+    public Agent(String bankHost, int bankPort, String agentName, int initialFunds) {
         try {
-            System.out.println("Starting Agent...");
-            boolean isAuto = args.length > 4 && args[4].equals("auto");
-            Agent agent = new Agent(isAuto);
-            System.out.println("Connecting to bank at " + args[0] + ":" + args[1]);
-            agent.start(args[0], Integer.parseInt(args[1]), args[2], Integer.parseInt(args[3]));
-            agent.showMenu(); // Call the showMenu() method after the agent has started
-        } catch (IOException | ClassNotFoundException e) {
-            System.out.println("Error starting Agent:");
-            e.printStackTrace();
-        }
-    }
+            System.out.println("Attempting to connect to bank at " + bankHost + ":" + bankPort);
 
-    public Agent(boolean isAuto) {
-        System.out.println("Initializing Agent...");
-        this.isAuto = isAuto;
-        this.userInterface = new UserInterface(this);
-        this.running = true;
-        this.auctionManager = new AuctionManager();
-    }
+            // Connect to bank
+            this.bankConnection = new BankConnection(bankHost, bankPort);
+            System.out.println("Connected to bank successfully");
 
-    public void start(String host, int bankPort, String name, int initialBalance) throws IOException, ClassNotFoundException {
-        try {
-            System.out.println("Connecting to bank at " + host + ":" + bankPort);
-            bankConnection = new BankConnection(host, bankPort);
-            System.out.println("Connected to bank");
+            // Create account and get account number
+            this.accountNum = bankConnection.createAccount(agentName, initialFunds);
+            System.out.println("Created account with number: " + accountNum);
 
-            System.out.println("Registering with bank...");
-            bankConnection.sendMessage(new Message("NewAgent"));
-            bankConnection.sendMessage(new Message("CreateNewAccount", initialBalance, name));
+            // Initialize components
+            this.balance = initialFunds;
+            this.auctionManager = new AuctionManager(this);
+            this.userInterface = new UserInterface(this);
+            this.autoBidder = new AutoBidder(this);
 
-            Message response = bankConnection.receiveMessage();
-            accountNum = (Integer) response.splitCommand(1);
-            System.out.println("Account created with number: " + accountNum);
+            System.out.println("Agent initialization completed successfully");
 
-            if (isAuto) {
-                runAutoBidder();
-            } else {
-                showMenu();
-            }
         } catch (Exception e) {
-            System.out.println("Error during startup:");
+            System.err.println("Failed to initialize Agent: " + e.getMessage());
             e.printStackTrace();
-            throw e;
+            System.exit(1);
         }
     }
 
-    private void showMenu() {
-        this.userInterface.showMenu();
-    }
-
-    public void checkBalance() throws IOException, ClassNotFoundException {
-        System.out.println("Checking balance...");
-        bankConnection.sendMessage(new Message("availableBalance"));
-        Message response = bankConnection.receiveMessage();
-        System.out.println("Available Balance: $" + response.splitCommand(1));
-    }
-
-    public void viewAuctionHouses() throws IOException, ClassNotFoundException {
-        System.out.println("Requesting auction house list...");
-        bankConnection.sendMessage(new Message("ViewCurrentAuctions"));
-        Message response = bankConnection.receiveMessage();
-        @SuppressWarnings("unchecked")
-        HashMap<AuctionInfo, AuctionHouseAddress> auctions =
-                (HashMap<AuctionInfo, AuctionHouseAddress>) response.splitCommand(1);
-
-        if (auctions.isEmpty()) {
-            System.out.println("No auction houses available.");
-            return;
+    public void start() {
+        System.out.println("Starting agent interface...");
+        if (userInterface != null && autoBidder != null) {
+            userInterface.start();
+            autoBidder.start();
+        } else {
+            System.err.println("Agent not properly initialized. Cannot start.");
+            System.exit(1);
         }
-
-        System.out.println("\nAvailable Auction Houses:");
-        for (Map.Entry<AuctionInfo, AuctionHouseAddress> entry : auctions.entrySet()) {
-            AuctionHouseAddress addr = entry.getValue();
-            String addressKey = addr.getIpAddress() + ":" + addr.getPortNum();
-            System.out.println(addressKey);
-            auctionManager.connectToAuctionHouse(addr);
-        }
-    }
-
-    public void placeBid() throws IOException {
-        this.userInterface.placeBid();
-    }
-
-    public void exit() throws IOException {
-        System.out.println("Exiting...");
-        running = false;
-
-        bankConnection.sendMessage(new Message("Terminates"));
-        bankConnection.close();
-        auctionManager.closeAll();
-
-        System.out.println("Goodbye!");
-        System.exit(0);
-    }
-
-    private void runAutoBidder() {
-        System.out.println("Starting auto-bidder mode...");
-        Random random = new Random();
-
-        while (running) {
-            try {
-                Thread.sleep(5000);
-                viewAuctionHouses();
-                auctionManager.viewItems();
-                // Auto-bidding logic could be implemented here
-            } catch (Exception e) {
-                if (running) {
-                    System.out.println("Error in auto-bidder:");
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    // Getters for other classes to use
-    public boolean isRunning() {
-        return running;
-    }
-
-    public void setRunning(boolean running) {
-        this.running = running;
     }
 
     public int getAccountNum() {
         return accountNum;
     }
 
-    public BankConnection getBankConnection() {
-        return bankConnection;
+    public double getBalance() {
+        return balance;
     }
 
-    public AuctionManager getAuctionManager() {
-        return auctionManager;
+    public void updateBalance(double newBalance) {
+        this.balance = newBalance;
+    }
+
+    public void placeBid(String auctionId, double amount) {
+        auctionManager.placeBid(auctionId, amount);
+    }
+
+    public void registerWithAuctionHouse(AuctionHouseAddress address) {
+        auctionManager.connectToAuctionHouse(address);
+    }
+
+    public static void main(String[] args) {
+        if (args.length != 4) {
+            System.out.println("Usage: java Agent <bank-host> <bank-port> <agent-name> <initial-funds>");
+            System.exit(1);
+        }
+
+        try {
+            String bankHost = args[0];
+            int bankPort = Integer.parseInt(args[1]);
+            String agentName = args[2];
+            int initialFunds = Integer.parseInt(args[3]);
+
+            System.out.println("Starting agent with following parameters:");
+            System.out.println("Bank Host: " + bankHost);
+            System.out.println("Bank Port: " + bankPort);
+            System.out.println("Agent Name: " + agentName);
+            System.out.println("Initial Funds: " + initialFunds);
+
+            Agent agent = new Agent(bankHost, bankPort, agentName, initialFunds);
+            agent.start();
+        } catch (NumberFormatException e) {
+            System.err.println("Error: Port and initial funds must be numbers");
+            System.exit(1);
+        }
     }
 }
