@@ -29,9 +29,9 @@ public class AuctionHouse {
 
     private List<Item> generateItems() {
         List<Item> items = new ArrayList<>();
-        items.add(new Item("Antique Vase", 1000.0, "A beautiful Ming dynasty vase"));
-        items.add(new Item("Vintage Watch", 500.0, "1950s Rolex Submariner"));
-        items.add(new Item("Oil Painting", 2000.0, "19th century landscape"));
+        items.add(new Item("Old Bicycle ", 1000.0, "Used for the England citizen"));
+        items.add(new Item("Exclusive Printer", 500.0, "1980s Printer"));
+        items.add(new Item("Old Car", 2000.0, "Volswagen 1999"));
         System.out.println("Generated items:");
         for (Item item : items) {
             System.out.println("- " + item.getName() + " (Starting price: $" + item.getStartingPrice() + ")");
@@ -160,7 +160,8 @@ public class AuctionHouse {
 
     public static void main(String[] args) {
         if (args.length != 2) {
-            System.out.println("Usage: java AuctionHouse <bank-host> <bank-port>");
+            System.out.println("Missing argument, must follow this patter" +
+                    " java AuctionHouse <bank-host> <bank-port>");
             System.exit(1);
         }
 
