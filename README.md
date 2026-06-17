@@ -1,40 +1,123 @@
-# Project Auctions
-This program involves simulating a distributed system with the following components:
+# Auctions — Distributed System
 
-Bank: The central entity located at a fixed, known address. It manages the accounts of both auction houses and agents, tracking balances and facilitating transactions.
+A distributed auction system in Java where a central Bank, multiple
+Auction Houses, and multiple bidding Agents communicate over TCP
+sockets using serialized message passing.
 
-Auction Houses: Distributed entities responsible for listing items for auction and managing bids. These entities will be created dynamically and operate independently on separate machines.
+## Architecture
+Bank (fixed address, port)
 
-Agents: Clients dynamically created on other machines. They interact with the auction houses to place bids and purchase items. Agents will communicate with the bank to ensure they have sufficient funds for transactions.
-# Implementation Details
-1. We chose to do a console version of the auctions project.
-2. it's sending messages throw all computer machines showing that they all connect.
-3. The Bank and Agents are their own servers, but the auctionHouse is working as a client.
+├── manages accounts for all Agents and Auction Houses
 
-# How to Run 
-## Bank.jar:
-java -jar Bank.jar <BANK-PORT>
-## Agent.jar
-java -jar Agent.jar <BANK-HOST> <BANK-PORT> <AGENT-NAME> <INITIAL-FUND>
-## AuctionHouse
-java -jar AuctionHouse.jar <BANK-HOST> <BANK-PORT>
+├── tracks balances and blocked funds
 
-# Doc contains:
-The doc directory contains the object design for our Auctions program.
+└── maintains registry of active Auction Houses
 
-# Known issues 
-1. We weren't able to have the auctionHouse as a server.
-2. We couldn't get the biding to work properly.
+Auction House (dynamic address, registers with Bank)
 
-# How We Divided Work:
-## Ricardo Rangel-Valencia
-- Bank package
-- constants package
+├── generates items for auction
 
-## Alexander Leon 
-- AuctionHouse
+├── accepts Agent connections
 
-## Enrique Mendoza
-- Agent
+└── validates and processes bids
 
-But we all help out towards the end due to problems we had.
+Agent (client)
+
+├── connects to Bank to create an account
+
+├── browses all registered Auction Houses
+
+└── connects directly to an Auction House to place bids
+
+## Project Structure
+src/
+
+Bank/
+
+Bank.java            — Central server entry point
+
+Account.java          — Account balance and fund-blocking logic
+
+AgentHandler.java       — Handles agent connections on the bank
+
+AuctionHandler.java      — Handles auction house connections on the bank
+
+AuctionInfo.java          — Serializable auction house metadata
+
+AuctionHouse/
+
+AuctionHouse.java        — Auction house server entry point
+
+AgentHandler.java         — Handles agent connections on the auction house
+
+Auction.java                — Single item auction with bid logic
+
+Item.java                     — Serializable auction item
+
+Agent/
+
+Agent.java                    — Agent entry point
+
+BankConnection.java            — Manages the agent's connection to the bank
+
+AuctionManager.java             — Manages connections to auction houses
+
+AuctionListener.java             — Background thread for async notifications
+
+AutoBidder.java                   — Automatic incremental bidding
+
+UserInterface.java                 — Console menu
+
+constants/
+
+Message.java                        — Generic serializable message wrapper
+
+AuctionHouseAddress.java             — Serializable network address
+
+doc/
+
+Design Project 5.pdf
+
+## How to Run
+
+Each component runs as a separate process. Open three terminals.
+
+**1. Start the Bank:**
+java -jar Bank.jar <bank-port>
+
+**2. Start one or more Auction Houses:**
+java -jar AuctionHouse.jar <bank-host> <bank-port>
+
+**3. Start one or more Agents:**
+java -jar Agent.jar <bank-host> <bank-port> <agent-name> <initial-funds>
+
+Example:
+java -jar Bank.jar 5000
+
+java -jar AuctionHouse.jar localhost 5000
+
+java -jar Agent.jar localhost 5000 Enrique 1000
+
+## How to Use
+
+1. From the Agent menu, select **2** to view all available auction houses
+   and their items
+2. Select **3** to place a bid — enter the auction house's address
+   (shown in step 1), the item name, and your bid amount
+3. The agent automatically connects to the auction house if not already
+   connected, and receives a live confirmation when the bid is accepted
+4. Select **4** to set an automatic maximum bid for an item
+
+## Message Protocol
+
+Communication uses a generic `Message` object carrying a command string
+followed by any number of serializable arguments.
+
+**Agent <-> Bank:**
+`NewAgent`, `CreateNewAccount`, `ViewCurrentAuctions`, `Terminates`
+
+**Auction House <-> Bank:**
+`NewAuctionHouse`, `Create New Account`, `Auction Address`, `Block Funds`
+
+**Agent <-> Auction House:**
+`RegisterAgent`, `PlaceBid`, `BidAccepted`, `BidRejected`
