@@ -4,11 +4,16 @@ import constants.Message;
 import java.io.*;
 import java.net.Socket;
 
+/**
+ * Handles a single agent's connection on the auction house side.
+ * Processes registration, bid placement, and item/auction list requests.
+ */
 public class AgentHandler extends Thread {
     private Socket socket;
     private AuctionHouse auctionHouse;
     private ObjectInputStream in;
     private ObjectOutputStream out;
+    private int registeredAccountNum = -1;
 
     public AgentHandler(Socket socket, AuctionHouse auctionHouse) {
         this.socket = socket;
@@ -33,9 +38,8 @@ public class AgentHandler extends Thread {
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error in agent handler: " + e.getMessage());
         } finally {
-            try {
-                socket.close();
-            } catch (IOException e) {
+            try { socket.close(); }
+            catch (IOException e) {
                 System.err.println("Error closing socket: " + e.getMessage());
             }
         }
@@ -44,6 +48,11 @@ public class AgentHandler extends Thread {
     private void processMessage(Message message) throws IOException {
         try {
             switch (message.getCommand()) {
+                case "RegisterAgent":
+                    registeredAccountNum = (Integer) message.splitCommand(1);
+                    System.out.println("Registered agent with account: "
+                            + registeredAccountNum);
+                    break;
                 case "GetAuctions":
                     sendAuctionList();
                     break;
@@ -53,6 +62,8 @@ public class AgentHandler extends Thread {
                 case "GetItems":
                     sendItemList();
                     break;
+                default:
+                    System.out.println("Unknown command: " + message.getCommand());
             }
         } catch (Exception e) {
             System.err.println("Error processing message: " + e.getMessage());
@@ -70,16 +81,27 @@ public class AgentHandler extends Thread {
         out.flush();
     }
 
+    /**
+     * Handles a bid request. Message format from AuctionManager.placeBid:
+     * ("PlaceBid", itemName, accountNum, amount)
+     */
     private void handleBid(Message message) throws IOException {
-        String auctionId = (String) message.splitCommand(1);
-        int accountNum = (Integer) message.splitCommand(2);
-        double amount = (Double) message.splitCommand(3);
+        String itemName  = (String) message.splitCommand(1);
+        int accountNum   = (Integer) message.splitCommand(2);
+        double amount    = (Double) message.splitCommand(3);
+
+        String auctionId = auctionHouse.findAuctionIdByItemName(itemName);
+        if (auctionId == null) {
+            out.writeObject(new Message("BidRejected", itemName));
+            out.flush();
+            return;
+        }
 
         boolean success = auctionHouse.placeBid(auctionId, accountNum, amount);
         if (success) {
-            out.writeObject(new Message("BidAccepted", auctionId, amount));
+            out.writeObject(new Message("BidAccepted", itemName, amount));
         } else {
-            out.writeObject(new Message("BidRejected", auctionId));
+            out.writeObject(new Message("BidRejected", itemName));
         }
         out.flush();
     }

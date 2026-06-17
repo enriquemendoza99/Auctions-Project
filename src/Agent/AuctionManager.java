@@ -7,6 +7,11 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Manages this agent's connections to one or more auction houses.
+ * Each auction house connection is keyed by its "ip:port" address.
+ * An agent must connect to an auction house before it can place bids there.
+ */
 public class AuctionManager {
     private Agent agent;
     private Map<String, Socket> auctionConnections;
@@ -20,37 +25,62 @@ public class AuctionManager {
         this.listeners = new HashMap<>();
     }
 
-    public void connectToAuctionHouse(AuctionHouseAddress address) {
+    /**
+     * Connects to an auction house if not already connected, and registers
+     * this agent's account number with it.
+     * @param address the auction house's network address
+     * @return the auctionId key used to reference this connection
+     */
+    public String connectToAuctionHouse(AuctionHouseAddress address) {
+        String auctionId = address.getIpAddress() + ":" + address.getPortNum();
+        if (auctionConnections.containsKey(auctionId)) {
+            return auctionId; // already connected
+        }
         try {
             Socket socket = new Socket(address.getIpAddress(), address.getPortNum());
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
 
-            // Send initial registration message
+            // Register this agent with the auction house
             out.writeObject(new Message("RegisterAgent", agent.getAccountNum()));
+            out.flush();
 
-            // Create and start listener
             AuctionListener listener = new AuctionListener(socket, agent);
             listener.start();
 
-            // Store connections
-            String auctionId = address.getIpAddress() + ":" + address.getPortNum();
             auctionConnections.put(auctionId, socket);
             outputStreams.put(auctionId, out);
             listeners.put(auctionId, listener);
 
+            System.out.println("Connected to auction house at " + auctionId);
         } catch (IOException e) {
             System.err.println("Failed to connect to auction house: " + e.getMessage());
         }
+        return auctionId;
     }
 
-    public void placeBid(String auctionId, double amount) {
+    /**
+     * Places a bid on a specific item at the given auction house.
+     * Connects to the auction house first if not already connected.
+     * @param address the auction house's network address
+     * @param itemName the name of the item being bid on
+     * @param amount the bid amount
+     */
+    public void placeBid(AuctionHouseAddress address, String itemName, double amount) {
+        String auctionId = connectToAuctionHouse(address);
         ObjectOutputStream out = outputStreams.get(auctionId);
         if (out != null) {
             try {
-                out.writeObject(new Message("PlaceBid", agent.getAccountNum(), amount));
+                // Send command, item name, account number, and amount —
+                // matching exactly what AuctionHouse.AgentHandler expects
+                out.writeObject(new Message("PlaceBid", itemName,
+                        agent.getAccountNum(), amount));
+                out.flush();
             } catch (IOException e) {
                 System.err.println("Failed to place bid: " + e.getMessage());
             }
+        } else {
+            System.err.println("No connection available for auction: " + auctionId);
         }
     }
 

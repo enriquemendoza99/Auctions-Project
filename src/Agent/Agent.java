@@ -4,6 +4,10 @@ import constants.AuctionHouseAddress;
 import java.io.IOException;
 import java.util.HashMap;
 
+/**
+ * Represents a bidding agent that connects to a bank to manage funds and
+ * to one or more auction houses to browse and bid on items.
+ */
 public class Agent {
     private int accountNum;
     private BankConnection bankConnection;
@@ -14,10 +18,8 @@ public class Agent {
 
     public Agent(String bankHost, int bankPort, String agentName, int initialFunds) {
         try {
-            System.out.println("Attempting to connect to bank at " + bankHost + ":" + bankPort);
-
+            System.out.println("Connecting to bank at " + bankHost + ":" + bankPort);
             this.bankConnection = new BankConnection(bankHost, bankPort);
-            System.out.println("Connected to bank successfully");
 
             this.accountNum = bankConnection.createAccount(agentName, initialFunds);
             System.out.println("Created account with number: " + accountNum);
@@ -47,49 +49,40 @@ public class Agent {
         }
     }
 
-    public int getAccountNum() {
-        return accountNum;
+    public int getAccountNum() { return accountNum; }
+    public double getBalance() { return balance; }
+    public void updateBalance(double newBalance) { this.balance = newBalance; }
+
+    /**
+     * Places a bid on an item at a specific auction house.
+     * Delegates to the AuctionManager, which handles connecting
+     * to the auction house if needed.
+     */
+    public void placeBid(AuctionHouseAddress address, String itemName, double amount) {
+        auctionManager.placeBid(address, itemName, amount);
     }
 
-    public double getBalance() {
-        return balance;
-    }
-
-    public void updateBalance(double newBalance) {
-        this.balance = newBalance;
-    }
-
-    public void placeBid(String auctionId, double amount) {
-        auctionManager.placeBid(auctionId, amount);
-    }
-
-    public HashMap<Object, AuctionHouseAddress> getAvailableAuctions() throws IOException, ClassNotFoundException {
+    public HashMap<Object, AuctionHouseAddress> getAvailableAuctions()
+            throws IOException, ClassNotFoundException {
         return bankConnection.getAvailableAuctions();
     }
 
     public static void main(String[] args) {
         if (args.length != 4) {
-            System.out.println("Usage: java Agent <bank-host> <bank-port> <agent-name> <initial-funds>");
+            System.out.println("Usage: java Agent <bank-host> <bank-port> " +
+                    "<agent-name> <initial-funds>");
             System.exit(1);
         }
-
         try {
             String bankHost = args[0];
             int bankPort = Integer.parseInt(args[1]);
             String agentName = args[2];
             int initialFunds = Integer.parseInt(args[3]);
 
-            System.out.println("Starting agent with following parameters:");
-            System.out.println("Bank Host: " + bankHost);
-            System.out.println("Bank Port: " + bankPort);
-            System.out.println("Agent Name: " + agentName);
-            System.out.println("Initial Funds: " + initialFunds);
-
             Agent agent = new Agent(bankHost, bankPort, agentName, initialFunds);
             agent.start();
         } catch (NumberFormatException e) {
             System.err.println("Error: Port and initial funds must be numbers");
-            System.exit(1);
         }
     }
 }
