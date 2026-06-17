@@ -12,6 +12,7 @@ Bank (fixed address, port)
 ├── tracks balances and blocked funds
 
 └── maintains registry of active Auction Houses
+
 Auction House (dynamic address, registers with Bank)
 
 ├── generates items for auction
@@ -19,6 +20,7 @@ Auction House (dynamic address, registers with Bank)
 ├── accepts Agent connections
 
 └── validates and processes bids
+
 Agent (client)
 
 ├── connects to Bank to create an account
